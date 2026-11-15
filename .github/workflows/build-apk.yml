@@ -1,0 +1,89 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build web assets for Android
+        run: npx vite build
+
+      - name: Add Capacitor Android platform
+        run: npx cap add android
+
+      - name: Configure Android permissions (Camera & Storage)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "android/app/src/main/AndroidManifest.xml";
+            let xml = fs.readFileSync(path, "utf8");
+            const perms = [
+              "<uses-permission android:name=\"android.permission.CAMERA\" />",
+              "<uses-permission android:name=\"android.permission.READ_MEDIA_IMAGES\" />",
+              "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\" android:maxSdkVersion=\"32\" />",
+              "<uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />"
+            ];
+            for (const p of perms) {
+              if (!xml.includes(p)) {
+                xml = xml.replace("<application", p + "\n    <application");
+              }
+            }
+            fs.writeFileSync(path, xml);
+          '
+
+      - name: Sync Capacitor Android assets
+        run: npx cap sync android
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK output
+        run: |
+          mkdir -p release-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/smart-math-scanner-debug.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-math-scanner-apk
+          path: release-apk/smart-math-scanner-debug.apk
+
+      - name: Publish GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Smart Math Scanner APK (v1.0.${{ github.run_number }})
+          body: Automated Android APK build powered by Capacitor and GitHub Actions.
+          files: release-apk/smart-math-scanner-debug.apk

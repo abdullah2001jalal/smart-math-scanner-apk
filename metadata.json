@@ -1,0 +1,6 @@
+{
+  "name": "Smart Math & Text Scanner",
+  "description": "Scan documents, images, PDFs, and formulas to rendered LaTeX with live preview and export to PDF or Word DOCX.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
